@@ -1,0 +1,108 @@
+{
+  "name": "PromptResult",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "Reference to Report entity"
+    },
+    "topic": {
+      "type": "string",
+      "description": "Topic this prompt was testing"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "The customer question/prompt tested"
+    },
+    "brand_mentions": {
+      "type": "object",
+      "description": "Which brands were mentioned in each platform's response",
+      "properties": {
+        "chatgpt": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Brand IDs mentioned in ChatGPT"
+        },
+        "gemini": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Brand IDs mentioned in Gemini"
+        },
+        "perplexity": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Brand IDs mentioned in Perplexity"
+        },
+        "google_ai_overview": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Brand IDs mentioned in Google AI Overview"
+        }
+      }
+    },
+    "chatgpt_response": {
+      "type": "string",
+      "description": "ChatGPT's response to the prompt"
+    },
+    "gemini_response": {
+      "type": "string",
+      "description": "Gemini's response to the prompt"
+    },
+    "perplexity_response": {
+      "type": "string",
+      "description": "Perplexity's response to the prompt"
+    },
+    "google_ai_overview_present": {
+      "type": "boolean",
+      "description": "Whether Google AI Overview was present for this search"
+    },
+    "google_ai_overview_response": {
+      "type": "string",
+      "description": "Google AI Overview response text (null if no overview)"
+    },
+    "google_search_results": {
+      "type": "array",
+      "description": "Top 10 organic search results from Google",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "overall_score": {
+      "type": "number",
+      "description": "Score for this specific prompt 0-100"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    }
+  },
+  "required": [
+    "report_id",
+    "topic",
+    "prompt"
+  ]
+}

@@ -1,0 +1,117 @@
+{
+  "name": "TopicAnalysis",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "Reference to Report entity"
+    },
+    "topic": {
+      "type": "string",
+      "description": "Product/topic being analyzed"
+    },
+    "prompts_tested": {
+      "type": "array",
+      "description": "Prompts used for this topic",
+      "items": {
+        "type": "string"
+      }
+    },
+    "chatgpt_mentions": {
+      "type": "number",
+      "description": "Number of mentions in ChatGPT responses"
+    },
+    "chatgpt_positioning": {
+      "type": "string",
+      "description": "How brand was positioned in ChatGPT"
+    },
+    "chatgpt_sources": {
+      "type": "object",
+      "description": "Sources cited by ChatGPT with URLs",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "gemini_mentions": {
+      "type": "number",
+      "description": "Number of mentions in Gemini responses"
+    },
+    "gemini_positioning": {
+      "type": "string",
+      "description": "How brand was positioned in Gemini"
+    },
+    "gemini_sources": {
+      "type": "object",
+      "description": "Sources cited by Gemini with URLs",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "perplexity_mentions": {
+      "type": "number",
+      "description": "Number of mentions in Perplexity responses"
+    },
+    "perplexity_positioning": {
+      "type": "string",
+      "description": "How brand was positioned in Perplexity"
+    },
+    "perplexity_sources": {
+      "type": "object",
+      "description": "Sources cited by Perplexity with URLs",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "google_ai_overview_mentions": {
+      "type": "number",
+      "description": "Number of mentions in Google AI Overview"
+    },
+    "google_ai_overview_positioning": {
+      "type": "string",
+      "description": "How brand appeared in Google AI Overview"
+    },
+    "google_ai_overview_sources": {
+      "type": "object",
+      "description": "Sources in Google AI Overview with URLs",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "visibility_score": {
+      "type": "number",
+      "description": "Overall visibility score for this topic 0-100"
+    },
+    "key_insights": {
+      "type": "array",
+      "description": "Key findings from the analysis",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    }
+  },
+  "required": [
+    "report_id",
+    "topic"
+  ]
+}

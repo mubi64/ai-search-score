@@ -1,0 +1,45 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "email": {
+      "type": "string",
+      "description": "User email address (unique)"
+    },
+    "password_hash": {
+      "type": "string",
+      "description": "Hashed user password"
+    },
+    "name": {
+      "type": "string",
+      "description": "User display name"
+    },
+    "login_count": {
+      "type": "integer",
+      "description": "Number of times user has logged in",
+      "default": 0
+    },
+    "last_login_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of last login"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    }
+  },
+  "required": [
+    "email"
+  ]
+}

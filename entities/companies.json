@@ -1,0 +1,55 @@
+{
+  "name": "Company",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Company domain (unique)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Company name"
+    },
+    "description": {
+      "type": "string",
+      "description": "Brief company description"
+    },
+    "industry": {
+      "type": "string",
+      "description": "Industry/sector"
+    },
+    "products": {
+      "type": "array",
+      "description": "List of products/services the company offers",
+      "items": {
+        "type": "string"
+      }
+    },
+    "logo_url": {
+      "type": "string",
+      "description": "URL to company logo image"
+    },
+    "user_id": {
+      "type": "integer",
+      "description": "Foreign key reference to users table"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Record last update timestamp"
+    }
+  },
+  "required": [
+    "domain",
+    "name"
+  ]
+}

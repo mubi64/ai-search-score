@@ -1,0 +1,169 @@
+{
+  "name": "Report",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "company_id": {
+      "type": "string",
+      "description": "Reference to Company entity"
+    },
+    "company_name": {
+      "type": "string",
+      "description": "Cached company name"
+    },
+    "topics_analyzed": {
+      "type": "array",
+      "description": "Topics included in this report",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overall_visibility_score": {
+      "type": "number",
+      "description": "Overall visibility score 0-100"
+    },
+    "chatgpt_visibility": {
+      "type": "number",
+      "description": "ChatGPT visibility score 0-100"
+    },
+    "gemini_visibility": {
+      "type": "number",
+      "description": "Gemini visibility score 0-100"
+    },
+    "perplexity_visibility": {
+      "type": "number",
+      "description": "Perplexity visibility score 0-100"
+    },
+    "google_ai_overview_visibility": {
+      "type": "number",
+      "description": "Google AI Overview visibility score 0-100, null if no overviews present"
+    },
+    "total_mentions": {
+      "type": "number",
+      "description": "Total brand mentions across all platforms"
+    },
+    "chatgpt_total_mentions": {
+      "type": "number",
+      "description": "Total brand mentions in ChatGPT responses"
+    },
+    "gemini_total_mentions": {
+      "type": "number",
+      "description": "Total brand mentions in Gemini responses"
+    },
+    "perplexity_total_mentions": {
+      "type": "number",
+      "description": "Total brand mentions in Perplexity responses"
+    },
+    "google_ai_overview_total_mentions": {
+      "type": "number",
+      "description": "Total brand mentions in Google AI Overview responses"
+    },
+    "competitor_scores": {
+      "type": "object",
+      "description": "Scores for each competitor",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "competitor_id": {
+            "type": "string"
+          },
+          "competitor_name": {
+            "type": "string"
+          },
+          "overall_score": {
+            "type": "number"
+          },
+          "chatgpt_visibility": {
+            "type": "number"
+          },
+          "gemini_visibility": {
+            "type": "number"
+          },
+          "perplexity_visibility": {
+            "type": "number"
+          },
+          "google_ai_overview_visibility": {
+            "type": "number"
+          },
+          "total_mentions": {
+            "type": "number"
+          },
+          "chatgpt_mentions": {
+            "type": "number"
+          },
+          "gemini_mentions": {
+            "type": "number"
+          },
+          "perplexity_mentions": {
+            "type": "number"
+          },
+          "google_ai_overview_mentions": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "brands_tracked": {
+      "type": "array",
+      "description": "Log of all brands tracked in this analysis with their patterns",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "isMainCompany": {
+            "type": "boolean"
+          },
+          "patternCount": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "generic_terms_blacklist": {
+      "type": "array",
+      "description": "Log of generic terms that were blacklisted from brand detection",
+      "items": {
+        "type": "string"
+      }
+    },
+    "analysis_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the analysis was completed"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed"
+      ],
+      "default": "pending",
+      "description": "Report generation status"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Error message if analysis failed"
+    },
+    "debug_log": {
+      "type": "array",
+      "description": "Detailed logs from Cloud Run worker for debugging",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "company_id",
+    "topics_analyzed"
+  ]
+}

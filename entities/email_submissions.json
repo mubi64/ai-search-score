@@ -1,0 +1,32 @@
+{
+  "name": "EmailSubmission",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address submitted"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Domain extracted from email"
+    },
+    "company_id": {
+      "type": "string",
+      "description": "Reference to Company entity"
+    },
+    "submission_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the email was submitted"
+    }
+  },
+  "required": [
+    "email",
+    "domain",
+    "submission_timestamp"
+  ]
+}

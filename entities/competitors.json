@@ -1,0 +1,31 @@
+{
+  "name": "Competitor",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer",
+      "description": "Primary key identifier"
+    },
+    "company_id": {
+      "type": "string",
+      "description": "Reference to the Company being analyzed"
+    },
+    "competitor_name": {
+      "type": "string",
+      "description": "Name of the competitor"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Why this is a competitor"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this competitor should be tracked in analyses"
+    }
+  },
+  "required": [
+    "company_id",
+    "competitor_name"
+  ]
+}
