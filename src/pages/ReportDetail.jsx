@@ -168,13 +168,13 @@ export default function ReportDetail() {
             >
               {isRerunning ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Starting...
+                  <Loader2 className="w-4 h-4 mr-0 md:mr-2 animate-spin" />
+                  <span className="hidden md:inline">Starting...</span>
                 </>
               ) : (
                 <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Rerun Report
+                  <RefreshCw className="w-4 h-4 mr-0 md:mr-2" />
+                  <span className="hidden md:inline">Rerun Report</span>
                 </>
               )}
             </Button>
@@ -185,13 +185,13 @@ export default function ReportDetail() {
             >
               {isExporting ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Generating...
+                  <Loader2 className="w-4 h-4 mr-0 md:mr-2 animate-spin" />
+                  <span className="hidden md:inline">Generating...</span>
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export PDF
+                  <Download className="w-4 h-4 mr-0 md:mr-2" />
+                  <span className="hidden md:inline">Export PDF</span>
                 </>
               )}
             </Button>

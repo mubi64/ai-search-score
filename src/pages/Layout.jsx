@@ -74,7 +74,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </Link>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
               <nav className="flex items-center gap-2">
                 {navigationItems.map((item) => (
                   <Link key={item.title} to={item.url}>

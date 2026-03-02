@@ -26,7 +26,6 @@ router.post('/run', optionalAuth, async (req, res, next) => {
     // Fetch competitors from database
     const competitorsResult = await query('SELECT * FROM competitors WHERE company_id = $1', [company_id]);
     const competitors = competitorsResult.rows;
-    // console.log(`📊 Found ${competitors.length} competitors for company ${company.name}`);
 
     let report;
 
@@ -143,7 +142,6 @@ router.post('/generate-prompts', optionalAuth, async (req, res, next) => {
       throw new AppError('companyName and topic are required', 400);
     }
 
-    // console.log(`Generating ${count} prompts for ${companyName} on topic: ${topic}`);
 
     try {
       let promptGenerationPrompt;
@@ -301,19 +299,19 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
     if (process.env.OPENAI_API_KEY) {
       availableProviders.push('openai');
     } else {
-      console.log('⚠️ OpenAI API key not configured - skipping');
+      console.warn('⚠️ OpenAI API key not configured - skipping');
     }
 
     if (process.env.PERPLEXITY_API_KEY) {
       availableProviders.push('perplexity');
     } else {
-      console.log('⚠️ Perplexity API key not configured - skipping');
+      console.warn('⚠️ Perplexity API key not configured - skipping');
     }
 
     if (process.env.GEMINI_API_KEY) {
       availableProviders.push('gemini');
     } else {
-      console.log('⚠️ Gemini API key not configured - skipping');
+      console.warn('⚠️ Gemini API key not configured - skipping');
     }
 
     if (availableProviders.length === 0) {
@@ -404,7 +402,6 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
               link: r.link,
               snippet: r.snippet
             }));
-            // console.log(`✅ Google search for "${promptText.substring(0, 40)}..." returned ${searchResults.length} results`);
             await new Promise(resolve => setTimeout(resolve, 500));
           } catch (error) {
             console.error(`❌ Google search failed: ${error.message}`);
@@ -414,9 +411,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
         // Call each available provider
         for (const provider of availableProviders) {
           try {
-            // console.log(`🔄 Calling ${provider} for prompt: "${promptText.substring(0, 50)}..."`);
             const result = await llmService.invoke(provider, promptText);
-            // console.log(`✅ ${provider} responded successfully`);
             // Check if brand is mentioned
             const brandMentioned = result.response.toLowerCase().includes(company.name.toLowerCase()) ||
               result.response.toLowerCase().includes(company.domain.toLowerCase());
@@ -450,7 +445,6 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
               const perplexitySources = result.citations && result.citations.length > 0
                 ? convertCitationsToSources(result.citations)
                 : responseSources;
-              // console.log(`📎 Perplexity citations: ${result.citations?.length || 0} URLs`);
               topicData.perplexity_sources = mergeSources(topicData.perplexity_sources, perplexitySources);
               if (brandMentioned) {
                 promptResult.brand_mentions.perplexity.push(company.id.toString());
@@ -574,10 +568,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
         ]
       );
 
-      // console.log(`📊 Topic "${topic}" - Visibility: ${topicVisibility}%, Sources extracted: ${Object.keys(topicData.chatgpt_sources).length +
-        Object.keys(topicData.gemini_sources).length +
-        Object.keys(topicData.perplexity_sources).length
-        }`);
+      
     }
 
     // Calculate per-platform visibility scores
@@ -599,7 +590,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
       ? testedPlatforms.reduce((a, b) => a + b, 0) / testedPlatforms.length
       : 0;
 
-  
+
     // Calculate competitor scores
     const totalPromptCount = Object.values(promptsByTopic).reduce((sum, p) => sum + p.length, 0) * availableProviders.length;
     Object.keys(competitorStats).forEach(compId => {
