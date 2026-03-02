@@ -90,11 +90,11 @@ class LLMService {
     );
 
     // console.log(prompt, config, options, "params");
-    console.log({
-      text: response.data.choices[0].message.content,
-      usage: response.data.usage,
-      citations: response.data.citations || []
-    }, "openai response");
+    // console.log({
+    //   text: response.data.choices[0].message.content,
+    //   usage: response.data.usage,
+    //   citations: response.data.citations || []
+    // }, "openai response");
 
     return {
       text: response.data.choices[0].message.content,
@@ -149,12 +149,6 @@ class LLMService {
         }
       );
 
-      console.log({
-        text: response.data.choices[0].message.content,
-        usage: response.data.usage,
-        citations: response.data.citations || []
-      }, "perplexity response");
-
       return {
         text: response.data.choices[0].message.content,
         usage: response.data.usage,
@@ -181,12 +175,6 @@ class LLMService {
           }
         }
       );
-
-      console.log({
-        text: response.data.choices[0].message.content,
-        usage: response.data.usage,
-        citations: response.data.citations || []
-      }, "gemini response");
       
       return {
         text: response.data.choices[0].message.content,

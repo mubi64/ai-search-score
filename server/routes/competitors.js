@@ -11,7 +11,6 @@ router.post('/discover', optionalAuth, async (req, res, next) => {
   try {
     const { companyName, industry, products } = req.body;
 
-    console.log(`Discovering competitors for: ${companyName}`);
 
     try {
       const p = `Identify 10-15 top direct competitors for a company named "${companyName}" in the "${industry}" industry.
@@ -26,7 +25,6 @@ router.post('/discover', optionalAuth, async (req, res, next) => {
         Return ONLY valid JSON.`;
 
       const provider = process.env.OPENAI_API_KEY ? 'openai' : 'perplexity';
-      console.log(provider, "checking provider");
       
       const result = await llmService.invoke(provider, p, { temperature: 0.3 });
 

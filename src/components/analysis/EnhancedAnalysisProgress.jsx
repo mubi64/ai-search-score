@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { CheckCircle2, Loader2, Circle } from 'lucide-react';
 import PlatformIcon from '../ui/PlatformIcon';
 
@@ -14,16 +14,29 @@ const analysisSteps = [
   { id: 'calculating', label: 'Calculating scores', platform: null, duration: 5 }
 ];
 
+// Precompute cumulative percentage thresholds from duration weights
+// durations: 15,15,15,20,15,10,5,5 = 100 total
+// thresholds: [0, 15, 30, 45, 65, 80, 90, 95]
+const totalWeight = analysisSteps.reduce((sum, step) => sum + step.duration, 0);
+const stepThresholds = [];
+let _cumWeight = 0;
+analysisSteps.forEach(step => {
+  stepThresholds.push((_cumWeight / totalWeight) * 100);
+  _cumWeight += step.duration;
+});
+
 export default function EnhancedAnalysisProgress({ progress = 0 }) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   useEffect(() => {
-    // Calculate which step we're on based on progress
-    const progressPerStep = 100 / analysisSteps.length;
-    const newStepIndex = Math.min(
-      Math.floor(progress / progressPerStep),
-      analysisSteps.length - 1
-    );
+    // Determine which step we're on using weighted thresholds
+    let newStepIndex = 0;
+    for (let i = stepThresholds.length - 1; i >= 0; i--) {
+      if (progress >= stepThresholds[i]) {
+        newStepIndex = i;
+        break;
+      }
+    }
     setCurrentStepIndex(newStepIndex);
   }, [progress]);
 

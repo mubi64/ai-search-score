@@ -131,7 +131,6 @@ export default function CompetitorReview() {
     await Promise.all(createPromises);
 
     queryClient.invalidateQueries(['competitors', companyId]);
-    console.log(createPageUrl("TopicSelection") + `?companyId=${companyId}`, 'Competitors saved successfully');
     navigate(createPageUrl("TopicSelection") + `?companyId=${companyId}`);
   };
 

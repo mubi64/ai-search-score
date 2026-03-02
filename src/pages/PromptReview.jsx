@@ -72,7 +72,6 @@ export default function PromptReview() {
       const topic = topics[i];
       // Ensure count is at least 1, even if maxPrompts is very low or topics are many
       const count = Math.max(1, promptsPerTopicBase + (i < remainder ? 1 : 0));
-      console.log("Generating", count, "prompts for", company.name, "on topic:", topic);
       const isGeneralPresence = topic === 'General Company Presence';
       const products = isGeneralPresence ? (company.products || []) : null;
 
@@ -91,7 +90,6 @@ export default function PromptReview() {
   };
 
   const handleStartAnalysis = () => {
-    console.log('Starting analysis with prompts:', promptsByTopic);
 
     // Store prompts in sessionStorage instead of URL
     sessionStorage.setItem('analysisPrompts', JSON.stringify(promptsByTopic));
@@ -101,7 +99,6 @@ export default function PromptReview() {
   };
 
   const handlePromptChange = (topic, newPrompts) => {
-    console.log(`Updating prompts for topic "${topic}":`, newPrompts);
     setPromptsByTopic(prev => ({
       ...prev,
       [topic]: newPrompts

@@ -26,7 +26,6 @@ router.post('/discover', optionalAuth, async (req, res, next) => {
       // For now, let's just try to generate using LLM.
     }
 
-    console.log(`Discovering company for domain: ${domain}`);
 
     try {
       const p = `Analyze the domain "${domain}" and provide a JSON object with the following fields: 
@@ -40,8 +39,6 @@ router.post('/discover', optionalAuth, async (req, res, next) => {
       // Use perplexity if available for better web handling, else openai
       const provider = process.env.OPENAI_API_KEY ? 'perplexity': 'perplexity';
       const result = await llmService.invoke(provider, p, { temperature: 0.1 });
-      console.log(provider, "checking provider");
-      console.log("LLM discovery result:", result.response);
 
       // Clean markdown code blocks if any
       let jsonStr = result.response.replace(/```json/g, '').replace(/```/g, '').trim();

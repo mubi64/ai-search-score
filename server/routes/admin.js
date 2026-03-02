@@ -17,7 +17,7 @@ router.post('/verify-password', async (req, res, next) => {
             throw new AppError('Password is required', 400);
         }
 
-        console.log("admin password checking", ADMIN_PASSWORD, password);
+        // console.log("admin password checking", ADMIN_PASSWORD, password);
         
 
         const isValid = password === ADMIN_PASSWORD;

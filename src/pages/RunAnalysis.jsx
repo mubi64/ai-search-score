@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import apiClient from "@/api/apiClient";
@@ -39,6 +39,10 @@ export default function RunAnalysis() {
 
   const totalPrompts = Object.values(promptsByTopic).reduce((sum, prompts) => sum + prompts.length, 0);
 
+  // Refs for smooth progress animation (persist across renders)
+  const targetProgressRef = useRef(0);
+  const smoothProgressRef = useRef(0);
+
   const { data: company } = useQuery({
     queryKey: ['company', companyId],
     queryFn: async () => {
@@ -76,7 +80,6 @@ export default function RunAnalysis() {
 
   useEffect(() => {
     if (reportStatus?.status === 'completed' && !analysisComplete) {
-      console.log('✅ Analysis completed successfully! Redirecting...');
       setProgress(100);
       setAnalysisComplete(true);
       queryClient.invalidateQueries(['reports']);
@@ -84,7 +87,6 @@ export default function RunAnalysis() {
       sessionStorage.removeItem('analysisPrompts');
 
       setTimeout(() => {
-        console.log('Navigating to dashboard...');
         navigate(createPageUrl("Dashboard"));
       }, 2000);
     } else if (reportStatus?.status === 'failed' && !analysisFailed) {
@@ -99,7 +101,6 @@ export default function RunAnalysis() {
 
   const startAnalysisMutation = useMutation({
     mutationFn: async () => {
-      console.log('📝 Creating report...');
       const report = await apiClient.entities.Report.create({
         company_id: companyId,
         company_name: company.name,
@@ -108,10 +109,8 @@ export default function RunAnalysis() {
         analysis_timestamp: new Date().toISOString()
       });
 
-      console.log('📝 Report created with ID:', report.id);
       setReportId(report.id);
 
-      console.log('🚀 Triggering analysis function...');
       try {
         const response = await apiClient.functions.invoke('runAnalysis', {
           companyId,
@@ -120,7 +119,6 @@ export default function RunAnalysis() {
           promptsByTopic
         });
 
-        console.log('✅ Analysis function response:', response.data);
       } catch (error) {
         const isExpectedTimeout =
           error.message?.includes('502') ||
@@ -169,31 +167,59 @@ export default function RunAnalysis() {
       !analysisComplete &&
       !analysisFailed) {
       setHasTriggered(true);
-      console.log('🚀 Starting analysis...');
       startAnalysisMutation.mutate();
     }
   }, [company, topics, companyId, promptsByTopic, hasTriggered, startAnalysisMutation.isPending, analysisComplete, analysisFailed]);
 
+  // Poll real analysis progress from the server
+  const { data: progressData } = useQuery({
+    queryKey: ['analysisProgress', reportId],
+    queryFn: async () => {
+      if (!reportId) return null;
+      const result = await apiClient.functions.invoke('getAnalysisProgress', { report_id: reportId });
+      return result;
+    },
+    enabled: !!reportId && !analysisComplete && !analysisFailed,
+    refetchInterval: 3000
+  });
+
+  // Update target progress when real data arrives
+  useEffect(() => {
+    if (!progressData || !totalPrompts) return;
+    const completedPrompts = progressData.progress?.completed || 0;
+    if (totalPrompts > 0 && completedPrompts > 0) {
+      // Map real completion (0-100%) to 0-95% of the progress bar
+      // The final 5% is reserved for when the report status actually becomes 'completed'
+      const realPct = (completedPrompts / totalPrompts) * 95;
+      targetProgressRef.current = Math.max(targetProgressRef.current, realPct);
+    }
+  }, [progressData, totalPrompts]);
+
+  // Smooth animation + fallback creep (replaces the old fake linear timer)
   useEffect(() => {
     if (!hasTriggered || analysisComplete || analysisFailed) return;
 
-    const totalDuration = 360000;
-    const updateInterval = 500;
-    const totalSteps = totalDuration / updateInterval;
-    const incrementPerStep = 99 / totalSteps;
+    const MAX_SIMULATED = 95; // Never exceed 95% until report is actually complete
 
-    let currentProgress = 0;
+    const animationInterval = setInterval(() => {
+      const target = targetProgressRef.current;
+      let smooth = smoothProgressRef.current;
 
-    const timer = setInterval(() => {
-      currentProgress += incrementPerStep;
-
-      if (currentProgress >= 99) {
-        currentProgress = 99;
-        clearInterval(timer);
+      if (smooth < target) {
+        // Chase the real target with easing
+        smooth += Math.max(0.3, (target - smooth) * 0.08);
+        if (smooth > target) smooth = target;
+      } else {
+        // Slow creep between real updates so the bar always appears moving
+        smooth += 0.04;
+        // Don't creep more than ~8% past the last real target, and cap at MAX_SIMULATED
+        const creepLimit = Math.min(target + 8, MAX_SIMULATED);
+        if (smooth > creepLimit) smooth = creepLimit;
       }
 
-      setProgress(Math.floor(currentProgress));
-    }, updateInterval);
+      smoothProgressRef.current = smooth;
+      setProgress(Math.min(Math.round(smooth), MAX_SIMULATED));
+    }, 200);
 
     // Fallback: if analysis hasn't completed after max wait time, redirect anyway
     const maxWaitTimeout = setTimeout(() => {
@@ -206,7 +232,7 @@ export default function RunAnalysis() {
     }, 480000); // 8 minutes max wait
 
     return () => {
-      clearInterval(timer);
+      clearInterval(animationInterval);
       clearTimeout(maxWaitTimeout);
     };
   }, [hasTriggered, analysisComplete, analysisFailed, navigate]);

@@ -32,7 +32,6 @@ export default function ReportDetail() {
     queryKey: ['report', reportId],
     queryFn: async () => {
       const reports = await apiClient.entities.Report.filter({ id: reportId });
-      console.log(reports[0], "checkingg report");
       return reports[0];
     },
     enabled: !!reportId,

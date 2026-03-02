@@ -26,7 +26,7 @@ export default function Start() {
           });
         }
       } catch (error) {
-        console.log('Could not track login:', error);
+        console.error('Could not track login:', error);
       }
     };
     trackLogin();
@@ -46,7 +46,7 @@ export default function Start() {
             return;
           }
         } catch (error) {
-          console.log('Could not load company from session, will show email form');
+          console.error('Could not load company from session, will show email form:', error);
         }
       }
 

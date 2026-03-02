@@ -26,7 +26,6 @@ export default function AdminDashboard() {
     queryKey: ['adminData'],
     queryFn: async () => {
       const response = await apiClient.functions.invoke('getAdminData');
-      console.log('Admin data response:', response.data);
       return response.data;
     },
   });
@@ -63,9 +62,6 @@ export default function AdminDashboard() {
   }
 
   const { users = [], totalReports = 0 } = adminData || {};
-
-  console.log('Users data:', users);
-  console.log('Total reports:', totalReports);
 
   const handleLogout = () => {
     sessionStorage.removeItem('adminAuthenticated');

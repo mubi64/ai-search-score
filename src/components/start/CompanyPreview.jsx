@@ -61,7 +61,7 @@ export default function CompanyPreview({ company, onStartAnalysis, onStartOver, 
           alternativeCompany = existingCompanies[0];
         }
       } catch (filterError) {
-        console.log("Could not check for existing company, will create new one");
+        console.error("Could not check for existing company, will create new one");
       }
 
       // Create company if it doesn't exist
@@ -86,7 +86,7 @@ export default function CompanyPreview({ company, onStartAnalysis, onStartOver, 
             submission_timestamp: new Date().toISOString()
           });
         } catch (trackError) {
-          console.log("Could not track email submission:", trackError);
+          console.error("Could not track email submission:", trackError);
         }
       }
 

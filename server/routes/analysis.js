@@ -26,7 +26,7 @@ router.post('/run', optionalAuth, async (req, res, next) => {
     // Fetch competitors from database
     const competitorsResult = await query('SELECT * FROM competitors WHERE company_id = $1', [company_id]);
     const competitors = competitorsResult.rows;
-    console.log(`📊 Found ${competitors.length} competitors for company ${company.name}`);
+    // console.log(`📊 Found ${competitors.length} competitors for company ${company.name}`);
 
     let report;
 
@@ -143,7 +143,7 @@ router.post('/generate-prompts', optionalAuth, async (req, res, next) => {
       throw new AppError('companyName and topic are required', 400);
     }
 
-    console.log(`Generating ${count} prompts for ${companyName} on topic: ${topic}`);
+    // console.log(`Generating ${count} prompts for ${companyName} on topic: ${topic}`);
 
     try {
       let promptGenerationPrompt;
@@ -300,21 +300,18 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
 
     if (process.env.OPENAI_API_KEY) {
       availableProviders.push('openai');
-      console.log('✅ OpenAI (ChatGPT) provider available');
     } else {
       console.log('⚠️ OpenAI API key not configured - skipping');
     }
 
     if (process.env.PERPLEXITY_API_KEY) {
       availableProviders.push('perplexity');
-      console.log('✅ Perplexity provider available');
     } else {
       console.log('⚠️ Perplexity API key not configured - skipping');
     }
 
     if (process.env.GEMINI_API_KEY) {
       availableProviders.push('gemini');
-      console.log('✅ Gemini provider available');
     } else {
       console.log('⚠️ Gemini API key not configured - skipping');
     }
@@ -328,7 +325,6 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
       return;
     }
 
-    console.log(`📊 Using ${availableProviders.length} provider(s): ${availableProviders.join(', ')}`);
 
     // Track per-platform stats
     const platformStats = {
@@ -357,7 +353,6 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
           };
         }
       });
-      console.log(`📊 Tracking ${Object.keys(competitorStats).length} competitors`);
     }
 
     let totalMentions = 0;
@@ -409,7 +404,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
               link: r.link,
               snippet: r.snippet
             }));
-            console.log(`✅ Google search for "${promptText.substring(0, 40)}..." returned ${searchResults.length} results`);
+            // console.log(`✅ Google search for "${promptText.substring(0, 40)}..." returned ${searchResults.length} results`);
             await new Promise(resolve => setTimeout(resolve, 500));
           } catch (error) {
             console.error(`❌ Google search failed: ${error.message}`);
@@ -419,9 +414,9 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
         // Call each available provider
         for (const provider of availableProviders) {
           try {
-            console.log(`🔄 Calling ${provider} for prompt: "${promptText.substring(0, 50)}..."`);
+            // console.log(`🔄 Calling ${provider} for prompt: "${promptText.substring(0, 50)}..."`);
             const result = await llmService.invoke(provider, promptText);
-            console.log(`✅ ${provider} responded successfully`);
+            // console.log(`✅ ${provider} responded successfully`);
             // Check if brand is mentioned
             const brandMentioned = result.response.toLowerCase().includes(company.name.toLowerCase()) ||
               result.response.toLowerCase().includes(company.domain.toLowerCase());
@@ -455,7 +450,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
               const perplexitySources = result.citations && result.citations.length > 0
                 ? convertCitationsToSources(result.citations)
                 : responseSources;
-              console.log(`📎 Perplexity citations: ${result.citations?.length || 0} URLs`);
+              // console.log(`📎 Perplexity citations: ${result.citations?.length || 0} URLs`);
               topicData.perplexity_sources = mergeSources(topicData.perplexity_sources, perplexitySources);
               if (brandMentioned) {
                 promptResult.brand_mentions.perplexity.push(company.id.toString());
@@ -579,7 +574,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
         ]
       );
 
-      console.log(`📊 Topic "${topic}" - Visibility: ${topicVisibility}%, Sources extracted: ${Object.keys(topicData.chatgpt_sources).length +
+      // console.log(`📊 Topic "${topic}" - Visibility: ${topicVisibility}%, Sources extracted: ${Object.keys(topicData.chatgpt_sources).length +
         Object.keys(topicData.gemini_sources).length +
         Object.keys(topicData.perplexity_sources).length
         }`);
@@ -604,9 +599,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
       ? testedPlatforms.reduce((a, b) => a + b, 0) / testedPlatforms.length
       : 0;
 
-    console.log(`📊 Platform scores - ChatGPT: ${chatgptVisibility.toFixed(1)}%, Perplexity: ${perplexityVisibility.toFixed(1)}%, Gemini: ${geminiVisibility.toFixed(1)}%`);
-    console.log(`📊 Platform mentions - ChatGPT: ${platformStats.openai.mentions}, Perplexity: ${platformStats.perplexity.mentions}, Gemini: ${platformStats.gemini.mentions}`);
-
+  
     // Calculate competitor scores
     const totalPromptCount = Object.values(promptsByTopic).reduce((sum, p) => sum + p.length, 0) * availableProviders.length;
     Object.keys(competitorStats).forEach(compId => {
@@ -618,7 +611,6 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
 
     // Convert competitor stats to array format for storage
     const competitorScoresArray = Object.values(competitorStats);
-    console.log(`📊 Competitor scores calculated for ${competitorScoresArray.length} competitors`);
 
     // Update report with final results
     await query(
@@ -640,7 +632,6 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
         JSON.stringify(competitorScoresArray), reportId]
     );
 
-    console.log(`✅ Analysis completed for report ${reportId}`);
   } catch (error) {
     console.error(`❌ Analysis failed for report ${reportId}:`, error);
 

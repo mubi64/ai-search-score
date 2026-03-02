@@ -89,7 +89,7 @@ export default function EmailForm({ onDiscovering, onDiscovered }) {
           isNewUser = false; // This email has submitted before
         }
       } catch (filterError) {
-        console.log("Could not check for existing email submissions:", filterError);
+        console.error("Could not check for existing email submissions:", filterError);
         // Default to treating as new user if we can't check, which is 'true' initialized above
       }
 
@@ -101,7 +101,7 @@ export default function EmailForm({ onDiscovering, onDiscovered }) {
           company = existingCompanies[0];
         }
       } catch (filterError) {
-        console.log("Could not check for existing company, will create new one:", filterError);
+        console.error("Could not check for existing company, will create new one:", filterError);
         // `company` will remain undefined, leading to creation later
       }
 
@@ -125,7 +125,7 @@ export default function EmailForm({ onDiscovering, onDiscovered }) {
           submission_timestamp: new Date().toISOString()
         });
       } catch (trackError) {
-        console.log("Could not track email submission:", trackError);
+        console.error("Could not track email submission:", trackError);
       }
 
       // Store in session only
