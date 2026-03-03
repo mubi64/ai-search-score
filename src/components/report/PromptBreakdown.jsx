@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, CheckCircle2, XCircle, Search, X, ExternalLink, ChevronDown, ChevronUp, Package } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -33,9 +34,18 @@ const MarkdownLink = ({ href, children }) => {
   );
 };
 
+const PLATFORM_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "chatgpt", label: "ChatGPT" },
+  { value: "gemini", label: "Gemini" },
+  { value: "perplexity", label: "Perplexity" },
+  { value: "google", label: "Google AI" },
+];
+
 export default function PromptBreakdown({ promptResults, companyName, companyId }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPlatform, setFilterPlatform] = useState("all");
+  const isMobile = useIsMobile();
   const [selectedResponse, setSelectedResponse] = useState(null);
   const [expandedPrompts, setExpandedPrompts] = useState(new Set([0])); // First prompt expanded by default
 
@@ -138,37 +148,50 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
     <>
       <Card className="border-0 shadow-xl backdrop-blur-xl bg-white mb-8">
         <CardHeader className="border-b border-slate-100">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <CardTitle className="font-semibold tracking-tight flex items-center gap-2 text-2xl text-[#344547]">Prompt Analysis</CardTitle>
-            <Tabs defaultValue="all" onValueChange={setFilterPlatform}>
-              <TabsList>
-                <TabsTrigger
-                  value="all"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  All
-                </TabsTrigger>
-                <TabsTrigger
-                  value="chatgpt"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  ChatGPT
-                </TabsTrigger>
-                <TabsTrigger
-                  value="gemini"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  Gemini
-                </TabsTrigger>
-                <TabsTrigger
-                  value="perplexity"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  Perplexity
-                </TabsTrigger>
-                <TabsTrigger
-                  value="google"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  Google AI
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <CardTitle className="font-semibold tracking-tight flex items-center gap-2 text-xl md:text-2xl text-[#344547]">Prompt Analysis</CardTitle>
+            {isMobile ? (
+              <Select value={filterPlatform} onValueChange={setFilterPlatform}>
+                <SelectTrigger className="w-36 border-slate-200 text-slate-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLATFORM_OPTIONS.map(({ value, label }) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Tabs value={filterPlatform} onValueChange={setFilterPlatform}>
+                <TabsList>
+                  <TabsTrigger
+                    value="all"
+                    className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
+                    All
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="chatgpt"
+                    className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
+                    ChatGPT
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="gemini"
+                    className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
+                    Gemini
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="perplexity"
+                    className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
+                    Perplexity
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="google"
+                    className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
+                    Google AI
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
           </div>
           <div className="mt-4">
             <div className="relative">
@@ -202,7 +225,7 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
                   </div>
 
                   {/* Prompts for this topic */}
-                  <div className="space-y-4 pl-2">
+                  <div className="space-y-4">
                     {topicResults.map((result, topicIndex) => {
                       const globalIndex = promptResults.findIndex(r => r.id === result.id);
                       const chatgptMentioned = result.brand_mentions?.chatgpt?.includes(companyId);
@@ -215,10 +238,10 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
                         <div key={result.id} className="bg-slate-50 rounded-xl border border-slate-200 hover:shadow-md transition-shadow overflow-hidden">
                           {/* Collapsed Header - Always Visible */}
                           <div
-                            className="p-6 cursor-pointer hover:bg-slate-100 transition-colors"
+                            className="p-4 md:p-6 cursor-pointer hover:bg-slate-100 transition-colors"
                             onClick={() => togglePrompt(globalIndex)}>
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-start gap-3 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
                                 <div className="w-8 h-8 bg-gradient-to-br from-[#344547] to-[#2a3638] rounded-lg flex items-center justify-center flex-shrink-0">
                                   <span className="text-sm font-bold text-white">{topicIndex + 1}</span>
                                 </div>
@@ -226,8 +249,8 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
                                   <p className="font-medium text-[#344547] mb-2">{result.prompt}</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <div className={`px-4 py-2 rounded-lg border-2 font-bold text-xl ${getScoreColor(result.overall_score)}`}>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <div className={`px-2 py-1 md:px-4 md:py-2 rounded-lg border-2 font-bold text-base md:text-xl ${getScoreColor(result.overall_score)}`}>
                                   {result.overall_score || 0}
                                 </div>
                                 {isExpanded ?
@@ -240,8 +263,8 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
 
                           {/* Expanded Content - Platform Grid */}
                           {isExpanded &&
-                            <div className="px-6 pb-6">
-                              <div className="grid grid-cols-2 gap-4 mt-4">
+                            <div className="px-4 md:px-6 pb-4 md:pb-6">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                                 <div
                                   className="bg-white p-4 rounded-lg border border-slate-200 cursor-pointer hover:shadow-md transition-shadow"
                                   onClick={(e) => {

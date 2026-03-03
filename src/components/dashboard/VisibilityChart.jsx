@@ -1,11 +1,22 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { format, subDays, subMonths, subYears, isAfter, differenceInDays, differenceInMonths, differenceInYears } from "date-fns";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+const TIME_RANGE_OPTIONS = [
+  { value: "7d", label: "7 Days" },
+  { value: "30d", label: "30 Days" },
+  { value: "6m", label: "6 Months" },
+  { value: "1y", label: "1 Year" },
+  { value: "lifetime", label: "Lifetime" },
+];
 
 export default function VisibilityChart({ reports }) {
   const [timeRange, setTimeRange] = useState("lifetime");
   const hasInitialized = useRef(false);
+  const isMobile = useIsMobile();
 
   // Determine the earliest report date
   const sortedReports = [...reports].sort((a, b) => new Date(a.analysis_timestamp) - new Date(b.analysis_timestamp));
@@ -106,44 +117,66 @@ export default function VisibilityChart({ reports }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Tabs value={timeRange} onValueChange={setTimeRange}>
-          <TabsList className="bg-slate-100">
-            <TabsTrigger
-              value="7d"
-              disabled={!is7dAvailable}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
-            >
-              7 Days
-            </TabsTrigger>
-            <TabsTrigger
-              value="30d"
-              disabled={!is30dAvailable}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
-            >
-              30 Days
-            </TabsTrigger>
-            <TabsTrigger
-              value="6m"
-              disabled={!is6mAvailable}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
-            >
-              6 Months
-            </TabsTrigger>
-            <TabsTrigger
-              value="1y"
-              disabled={!is1yAvailable}
-              className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
-            >
-              1 Year
-            </TabsTrigger>
-            <TabsTrigger
-              value="lifetime"
-              className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
-            >
-              Lifetime
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {isMobile ? (
+          <Select value={timeRange} onValueChange={setTimeRange}>
+            <SelectTrigger className="w-36 bg-slate-100 border-slate-200 text-slate-700">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TIME_RANGE_OPTIONS.map(({ value, label }) => {
+                const disabled =
+                  (value === "7d" && !is7dAvailable) ||
+                  (value === "30d" && !is30dAvailable) ||
+                  (value === "6m" && !is6mAvailable) ||
+                  (value === "1y" && !is1yAvailable);
+                return (
+                  <SelectItem key={value} value={value} disabled={disabled}>
+                    {label}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Tabs value={timeRange} onValueChange={setTimeRange}>
+            <TabsList className="bg-slate-100">
+              <TabsTrigger
+                value="7d"
+                disabled={!is7dAvailable}
+                className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
+              >
+                7 Days
+              </TabsTrigger>
+              <TabsTrigger
+                value="30d"
+                disabled={!is30dAvailable}
+                className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
+              >
+                30 Days
+              </TabsTrigger>
+              <TabsTrigger
+                value="6m"
+                disabled={!is6mAvailable}
+                className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
+              >
+                6 Months
+              </TabsTrigger>
+              <TabsTrigger
+                value="1y"
+                disabled={!is1yAvailable}
+                className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
+              >
+                1 Year
+              </TabsTrigger>
+              <TabsTrigger
+                value="lifetime"
+                className="data-[state=active]:bg-white data-[state=active]:text-[#344547] text-slate-600"
+              >
+                Lifetime
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
       </div>
 
       {chartData.length === 0 ? (
