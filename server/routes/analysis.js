@@ -393,25 +393,56 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
           overall_score: 0
         };
 
-        // Fetch Google search results if configured
-        if (process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID) {
+        // Generate Google AI Overview-style response
+        if (process.env.GEMINI_API_KEY) {
           try {
-            const searchResults = await llmService.googleSearch(promptText);
-            promptResult.google_search_results = searchResults.slice(0, 10).map(r => ({
-              title: r.title,
-              link: r.link,
-              snippet: r.snippet
-            }));
-            await new Promise(resolve => setTimeout(resolve, 500));
+            const aiOverviewResult = await llmService.generateAIOverview(promptText);
+            if (aiOverviewResult && aiOverviewResult.present) {
+              promptResult.google_ai_overview_present = true;
+              promptResult.google_ai_overview_response = aiOverviewResult.text;
+
+              // Check if brand is mentioned in AI Overview
+              const aiOverviewText = aiOverviewResult.text.toLowerCase();
+              const brandMentionedInOverview = aiOverviewText.includes(company.name.toLowerCase()) ||
+                aiOverviewText.includes(company.domain.toLowerCase());
+
+              if (brandMentionedInOverview) {
+                promptResult.brand_mentions.google_ai_overview.push(company.id.toString());
+                platformStats.google.total++;
+                platformStats.google.mentions++;
+                topicData.google_ai_overview_mentions++;
+                totalMentions++;
+              } else {
+                platformStats.google.total++;
+              }
+
+              // Use grounding citations from Google Search if available, fallback to text extraction
+              const aiOverviewSources = aiOverviewResult.citations && aiOverviewResult.citations.length > 0
+                ? convertCitationsToSources(aiOverviewResult.citations)
+                : extractSources(aiOverviewResult.text);
+              topicData.google_ai_overview_sources = mergeSources(topicData.google_ai_overview_sources, aiOverviewSources);
+
+              // Check competitor mentions in AI Overview
+              Object.keys(competitorStats).forEach(compId => {
+                const compName = competitorStats[compId].competitor_name;
+                if (aiOverviewText.includes(compName.toLowerCase())) {
+                  competitorStats[compId].total_mentions++;
+                }
+              });
+
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
           } catch (error) {
-            console.error(`❌ Google search failed: ${error.message}`);
+            console.error(`❌ AI Overview generation failed: ${error.message}`);
           }
         }
 
         // Call each available provider
         for (const provider of availableProviders) {
           try {
-            const result = await llmService.invoke(provider, promptText);
+            // Wrap the prompt to request source citations from all providers
+            const promptWithSources = `${promptText}\n\nPlease include relevant source URLs (full https:// links) to back up your recommendations and claims where possible.`;
+            const result = await llmService.invoke(provider, promptWithSources);
             // Check if brand is mentioned
             const brandMentioned = result.response.toLowerCase().includes(company.name.toLowerCase()) ||
               result.response.toLowerCase().includes(company.domain.toLowerCase());
@@ -423,7 +454,11 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
             if (provider === 'openai') {
               promptResult.chatgpt_response = result.response;
               platformStats.openai.total++;
-              topicData.chatgpt_sources = mergeSources(topicData.chatgpt_sources, responseSources);
+              // Use citations from web search API if available, fallback to text extraction
+              const openaiSources = result.citations && result.citations.length > 0
+                ? convertCitationsToSources(result.citations)
+                : responseSources;
+              topicData.chatgpt_sources = mergeSources(topicData.chatgpt_sources, openaiSources);
               if (brandMentioned) {
                 promptResult.brand_mentions.chatgpt.push(company.id.toString());
                 platformStats.openai.mentions++;
@@ -463,7 +498,11 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
             } else if (provider === 'gemini') {
               promptResult.gemini_response = result.response;
               platformStats.gemini.total++;
-              topicData.gemini_sources = mergeSources(topicData.gemini_sources, responseSources);
+              // Use citations from Gemini grounding if available, fallback to text extraction
+              const geminiSources = result.citations && result.citations.length > 0
+                ? convertCitationsToSources(result.citations)
+                : responseSources;
+              topicData.gemini_sources = mergeSources(topicData.gemini_sources, geminiSources);
               if (brandMentioned) {
                 promptResult.brand_mentions.gemini.push(company.id.toString());
                 platformStats.gemini.mentions++;
@@ -581,10 +620,18 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
     const geminiVisibility = platformStats.gemini.total > 0
       ? (platformStats.gemini.mentions / platformStats.gemini.total) * 100
       : 0;
+    const googleAIOverviewVisibility = platformStats.google.total > 0
+      ? (platformStats.google.mentions / platformStats.google.total) * 100
+      : null;
 
     // Overall visibility is average of all platforms that were tested
     const allPlatformScores = [chatgptVisibility, perplexityVisibility, geminiVisibility];
     const allPlatformTotals = [platformStats.openai.total, platformStats.perplexity.total, platformStats.gemini.total];
+    // Include Google AI Overview in overall score if it was tested
+    if (platformStats.google.total > 0) {
+      allPlatformScores.push(googleAIOverviewVisibility);
+      allPlatformTotals.push(platformStats.google.total);
+    }
     const testedPlatforms = allPlatformScores.filter((_, i) => allPlatformTotals[i] > 0);
     const overallScore = testedPlatforms.length > 0
       ? testedPlatforms.reduce((a, b) => a + b, 0) / testedPlatforms.length
@@ -615,11 +662,14 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
            chatgpt_total_mentions = $6,
            perplexity_total_mentions = $7,
            gemini_total_mentions = $8,
-           competitor_scores = $9,
+           google_ai_overview_visibility = $9,
+           google_ai_overview_total_mentions = $10,
+           competitor_scores = $11,
            analysis_timestamp = NOW()
-       WHERE id = $10`,
+       WHERE id = $12`,
       [overallScore, totalMentions, chatgptVisibility, perplexityVisibility, geminiVisibility,
         platformStats.openai.mentions, platformStats.perplexity.mentions, platformStats.gemini.mentions,
+        googleAIOverviewVisibility, platformStats.google.mentions,
         JSON.stringify(competitorScoresArray), reportId]
     );
 

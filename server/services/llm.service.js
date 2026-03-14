@@ -73,34 +73,79 @@ class LLMService {
   }
 
   async callOpenAI(prompt, config, options) {
-    const response = await axios.post(
-      config.url,
-      {
-        model: options.model || config.model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: options.temperature || 0.7,
-        max_tokens: options.max_tokens || 2000
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${config.key}`,
-          'Content-Type': 'application/json'
+    // Use OpenAI Responses API with web_search_preview for real citations
+    try {
+      const response = await axios.post(
+        'https://api.openai.com/v1/responses',
+        {
+          model: options.model || config.model,
+          tools: [{ type: 'web_search_preview' }],
+          input: prompt
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${config.key}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Extract text and citations from the Responses API format
+      const output = response.data.output || [];
+      let text = '';
+      const citations = [];
+
+      for (const item of output) {
+        if (item.type === 'message') {
+          for (const content of (item.content || [])) {
+            if (content.type === 'output_text') {
+              text += content.text;
+              // Extract inline citations/annotations
+              for (const annotation of (content.annotations || [])) {
+                if (annotation.type === 'url_citation' && annotation.url) {
+                  citations.push(annotation.url);
+                }
+              }
+            }
+          }
         }
       }
-    );
 
-    // console.log(prompt, config, options, "params");
-    // console.log({
-    //   text: response.data.choices[0].message.content,
-    //   usage: response.data.usage,
-    //   citations: response.data.citations || []
-    // }, "openai response");
+      // Deduplicate citations
+      const uniqueCitations = [...new Set(citations)];
 
-    return {
-      text: response.data.choices[0].message.content,
-      usage: response.data.usage,
-      citations: response.data.citations || []
-    };
+      console.log(`✅ OpenAI web search returned ${uniqueCitations.length} citations`);
+
+      return {
+        text: text || '',
+        usage: response.data.usage,
+        citations: uniqueCitations
+      };
+    } catch (error) {
+      // Fallback to standard Chat Completions API if Responses API fails
+      console.log('⚠️ OpenAI Responses API failed, falling back to Chat Completions:', error.response?.data?.error?.message || error.message);
+      const response = await axios.post(
+        config.url,
+        {
+          model: options.model || config.model,
+          messages: [{ role: 'user', content: prompt }],
+          temperature: options.temperature || 0.7,
+          max_tokens: options.max_tokens || 2000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${config.key}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      return {
+        text: response.data.choices[0].message.content,
+        usage: response.data.usage,
+        citations: response.data.citations || []
+      };
+    }
   }
 
   async callAnthropic(prompt, config, options) {
@@ -162,61 +207,145 @@ class LLMService {
 
   async callGemini(prompt, config, options) {
     try {
+      // Use Gemini's native API with Google Search grounding for real citations
+      const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.key}`;
+      
       const response = await axios.post(
-        config.url,
+        nativeUrl,
         {
-          model: options.model || config.model,
-          messages: [{ role: 'user', content: prompt }]
+          contents: [{ parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }]
         },
         {
-          headers: {
-            'Authorization': `Bearer ${config.key}`,
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Content-Type': 'application/json' }
         }
       );
+
+      const candidate = response.data.candidates?.[0];
+      const text = candidate?.content?.parts?.map(p => p.text).join('') || '';
       
+      // Extract grounding citations from Gemini's grounding metadata
+      const citations = [];
+      const groundingMetadata = candidate?.groundingMetadata;
+      if (groundingMetadata?.groundingChunks) {
+        for (const chunk of groundingMetadata.groundingChunks) {
+          if (chunk.web?.uri) {
+            citations.push(chunk.web.uri);
+          }
+        }
+      }
+      // Also check groundingSupports for additional URLs
+      if (groundingMetadata?.groundingSupports) {
+        for (const support of groundingMetadata.groundingSupports) {
+          if (support.groundingChunkIndices) {
+            // These reference the groundingChunks above, already collected
+          }
+        }
+      }
+
+      const uniqueCitations = [...new Set(citations)];
+      console.log(`✅ Gemini grounding returned ${uniqueCitations.length} citations`);
+
       return {
-        text: response.data.choices[0].message.content,
-        usage: response.data.usage,
-        citations: response.data.citations || []
+        text,
+        usage: response.data.usageMetadata ? {
+          prompt_tokens: response.data.usageMetadata.promptTokenCount,
+          completion_tokens: response.data.usageMetadata.candidatesTokenCount,
+          total_tokens: response.data.usageMetadata.totalTokenCount
+        } : {},
+        citations: uniqueCitations
       };
     } catch (error) {
-      console.error('Gemini API Error:', error.response?.data || error.message);
-      throw error;
+      // Fallback to OpenAI-compatible endpoint without grounding
+      console.log('⚠️ Gemini native API failed, falling back to OpenAI-compatible:', error.response?.data?.error?.message || error.message);
+      try {
+        const response = await axios.post(
+          config.url,
+          {
+            model: config.model,
+            messages: [{ role: 'user', content: prompt }]
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${config.key}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        return {
+          text: response.data.choices[0].message.content,
+          usage: response.data.usage,
+          citations: response.data.citations || []
+        };
+      } catch (fallbackError) {
+        console.error('Gemini API Error:', fallbackError.response?.data || fallbackError.message);
+        throw fallbackError;
+      }
     }
   }
 
-  // Google Custom Search API
-  async googleSearch(query) {
-    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
-    const searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
+  // Generate a Google AI Overview-style response using Gemini with Google Search grounding
+  async generateAIOverview(searchQuery) {
+    const geminiConfig = this.providers.gemini;
 
-    if (!apiKey || !searchEngineId) {
-      console.log('⚠️ Google Search API not configured');
-      return [];
+    if (!geminiConfig.key) {
+      console.log('⚠️ Gemini API key not configured - skipping AI Overview generation');
+      return null;
     }
 
     try {
-      const response = await axios.get('https://www.googleapis.com/customsearch/v1', {
-        params: {
-          key: apiKey,
-          cx: searchEngineId,
-          q: query,
-          num: 10
-        }
-      });
+      const aiOverviewPrompt = `You are simulating a Google AI Overview. Given the following search query, provide a concise, factual summary response similar to what Google AI Overviews would display at the top of search results. 
 
-      const results = response.data.items || [];
-      return results.map((item, index) => ({
-        position: index + 1,
-        title: item.title,
-        link: item.link,
-        snippet: item.snippet || ''
-      }));
+Keep the response brief (2-4 paragraphs), factual, and directly answering the query. Include specific product names, company names, and recommendations where relevant, just like a real AI Overview would.
+
+Search query: "${searchQuery}"
+
+Respond with ONLY the AI Overview content, no meta-commentary.`;
+
+      // Use Gemini native API with Google Search grounding for real citations
+      const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiConfig.model}:generateContent?key=${geminiConfig.key}`;
+
+      const response = await axios.post(
+        nativeUrl,
+        {
+          contents: [{ parts: [{ text: aiOverviewPrompt }] }],
+          tools: [{ google_search: {} }],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1000
+          }
+        },
+        {
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+
+      const candidate = response.data.candidates?.[0];
+      const text = candidate?.content?.parts?.map(p => p.text).join('') || '';
+
+      // Extract grounding citations from Gemini's grounding metadata
+      const citations = [];
+      const groundingMetadata = candidate?.groundingMetadata;
+      if (groundingMetadata?.groundingChunks) {
+        for (const chunk of groundingMetadata.groundingChunks) {
+          if (chunk.web?.uri) {
+            citations.push(chunk.web.uri);
+          }
+        }
+      }
+
+      const uniqueCitations = [...new Set(citations)];
+      console.log(`✅ AI Overview grounding returned ${uniqueCitations.length} citations`);
+
+      return {
+        text,
+        present: true,
+        citations: uniqueCitations
+      };
     } catch (error) {
-      console.error('Google Search API Error:', error.response?.data?.error?.message || error.message);
-      return [];
+      console.error('AI Overview generation error:', error.response?.data || error.message);
+      return null;
     }
   }
 
