@@ -70,6 +70,8 @@ const createTables = async () => {
         generic_terms_blacklist TEXT[],
         analysis_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         status VARCHAR(50) DEFAULT 'pending',
+        total_prompts INTEGER DEFAULT 0,
+        completed_prompts INTEGER DEFAULT 0,
         error_message TEXT,
         debug_log TEXT[],
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -130,6 +132,14 @@ const createTables = async () => {
         company_id INTEGER REFERENCES companies(id),
         submission_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
       );
+    `);
+
+    // Add new columns to existing tables (safe to run repeatedly)
+    await client.query(`
+      DO $$ BEGIN
+        ALTER TABLE reports ADD COLUMN IF NOT EXISTS total_prompts INTEGER DEFAULT 0;
+        ALTER TABLE reports ADD COLUMN IF NOT EXISTS completed_prompts INTEGER DEFAULT 0;
+      END $$;
     `);
 
     // Create indexes

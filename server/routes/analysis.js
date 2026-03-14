@@ -75,14 +75,8 @@ router.get('/progress/:report_id', optionalAuth, async (req, res, next) => {
 
     const report = reportResult.rows[0];
 
-    // Count completed prompts
-    const promptCountResult = await query(
-      'SELECT COUNT(*) as completed FROM prompt_results WHERE report_id = $1',
-      [req.params.report_id]
-    );
-
-    const completed = parseInt(promptCountResult.rows[0].completed);
-    const total = report.metadata?.total_prompts || 0;
+    const completed = parseInt(report.completed_prompts) || 0;
+    const total = parseInt(report.total_prompts) || 0;
 
     res.json({
       success: true,
@@ -287,10 +281,10 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
   try {
     const totalPrompts = Object.values(promptsByTopic).reduce((sum, prompts) => sum + prompts.length, 0);
 
-    // Update report with total prompts in debug_log
+    // Store total_prompts on the report so progress endpoint can track it
     await query(
-      'UPDATE reports SET debug_log = array_append(debug_log, $1) WHERE id = $2',
-      [`Total prompts to process: ${totalPrompts}`, reportId]
+      'UPDATE reports SET total_prompts = $1, completed_prompts = 0, debug_log = array_append(debug_log, $2) WHERE id = $3',
+      [totalPrompts, `Total prompts to process: ${totalPrompts}`, reportId]
     );
 
     // Check which providers are available (have API keys configured)
@@ -430,103 +424,101 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
                 }
               });
 
-              await new Promise(resolve => setTimeout(resolve, 500));
             }
           } catch (error) {
             console.error(`❌ AI Overview generation failed: ${error.message}`);
           }
         }
 
-        // Call each available provider
-        for (const provider of availableProviders) {
+        // Call all available providers IN PARALLEL for speed
+        const promptWithSources = `${promptText}\n\nPlease include relevant source URLs (full https:// links) to back up your recommendations and claims where possible.`;
+
+        const providerPromises = availableProviders.map(async (provider) => {
           try {
-            // Wrap the prompt to request source citations from all providers
-            const promptWithSources = `${promptText}\n\nPlease include relevant source URLs (full https:// links) to back up your recommendations and claims where possible.`;
             const result = await llmService.invoke(provider, promptWithSources);
-            // Check if brand is mentioned
-            const brandMentioned = result.response.toLowerCase().includes(company.name.toLowerCase()) ||
-              result.response.toLowerCase().includes(company.domain.toLowerCase());
-
-            // Extract sources from response
-            const responseSources = extractSources(result.response);
-
-            // Track stats and store response based on provider
-            if (provider === 'openai') {
-              promptResult.chatgpt_response = result.response;
-              platformStats.openai.total++;
-              // Use citations from web search API if available, fallback to text extraction
-              const openaiSources = result.citations && result.citations.length > 0
-                ? convertCitationsToSources(result.citations)
-                : responseSources;
-              topicData.chatgpt_sources = mergeSources(topicData.chatgpt_sources, openaiSources);
-              if (brandMentioned) {
-                promptResult.brand_mentions.chatgpt.push(company.id.toString());
-                platformStats.openai.mentions++;
-                topicData.chatgpt_mentions++;
-                totalMentions++;
-              }
-              // Check competitor mentions
-              Object.keys(competitorStats).forEach(compId => {
-                const compName = competitorStats[compId].competitor_name;
-                if (result.response.toLowerCase().includes(compName.toLowerCase())) {
-                  competitorStats[compId].chatgpt_mentions++;
-                  competitorStats[compId].total_mentions++;
-                }
-              });
-            } else if (provider === 'perplexity') {
-              promptResult.perplexity_response = result.response;
-              platformStats.perplexity.total++;
-              // Use citations from API response if available, fallback to text extraction
-              const perplexitySources = result.citations && result.citations.length > 0
-                ? convertCitationsToSources(result.citations)
-                : responseSources;
-              topicData.perplexity_sources = mergeSources(topicData.perplexity_sources, perplexitySources);
-              if (brandMentioned) {
-                promptResult.brand_mentions.perplexity.push(company.id.toString());
-                platformStats.perplexity.mentions++;
-                topicData.perplexity_mentions++;
-                totalMentions++;
-              }
-              // Check competitor mentions
-              Object.keys(competitorStats).forEach(compId => {
-                const compName = competitorStats[compId].competitor_name;
-                if (result.response.toLowerCase().includes(compName.toLowerCase())) {
-                  competitorStats[compId].perplexity_mentions++;
-                  competitorStats[compId].total_mentions++;
-                }
-              });
-            } else if (provider === 'gemini') {
-              promptResult.gemini_response = result.response;
-              platformStats.gemini.total++;
-              // Use citations from Gemini grounding if available, fallback to text extraction
-              const geminiSources = result.citations && result.citations.length > 0
-                ? convertCitationsToSources(result.citations)
-                : responseSources;
-              topicData.gemini_sources = mergeSources(topicData.gemini_sources, geminiSources);
-              if (brandMentioned) {
-                promptResult.brand_mentions.gemini.push(company.id.toString());
-                platformStats.gemini.mentions++;
-                topicData.gemini_mentions++;
-                totalMentions++;
-              }
-              // Check competitor mentions
-              Object.keys(competitorStats).forEach(compId => {
-                const compName = competitorStats[compId].competitor_name;
-                if (result.response.toLowerCase().includes(compName.toLowerCase())) {
-                  competitorStats[compId].gemini_mentions++;
-                  competitorStats[compId].total_mentions++;
-                }
-              });
-            }
-
-            // Small delay to avoid rate limits
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            return { provider, result, error: null };
           } catch (error) {
             console.error(`❌ Error processing ${provider}: ${error.message}`);
+            return { provider, result: null, error };
+          }
+        });
+
+        const providerResults = await Promise.all(providerPromises);
+
+        // Process results from all providers
+        for (const { provider, result, error } of providerResults) {
+          if (error || !result) {
             // Track as failed attempt
             if (provider === 'openai') platformStats.openai.total++;
             else if (provider === 'perplexity') platformStats.perplexity.total++;
             else if (provider === 'gemini') platformStats.gemini.total++;
+            continue;
+          }
+
+          const brandMentioned = result.response.toLowerCase().includes(company.name.toLowerCase()) ||
+            result.response.toLowerCase().includes(company.domain.toLowerCase());
+          const responseSources = extractSources(result.response);
+
+          if (provider === 'openai') {
+            promptResult.chatgpt_response = result.response;
+            platformStats.openai.total++;
+            const openaiSources = result.citations && result.citations.length > 0
+              ? convertCitationsToSources(result.citations)
+              : responseSources;
+            topicData.chatgpt_sources = mergeSources(topicData.chatgpt_sources, openaiSources);
+            if (brandMentioned) {
+              promptResult.brand_mentions.chatgpt.push(company.id.toString());
+              platformStats.openai.mentions++;
+              topicData.chatgpt_mentions++;
+              totalMentions++;
+            }
+            Object.keys(competitorStats).forEach(compId => {
+              const compName = competitorStats[compId].competitor_name;
+              if (result.response.toLowerCase().includes(compName.toLowerCase())) {
+                competitorStats[compId].chatgpt_mentions++;
+                competitorStats[compId].total_mentions++;
+              }
+            });
+          } else if (provider === 'perplexity') {
+            promptResult.perplexity_response = result.response;
+            platformStats.perplexity.total++;
+            const perplexitySources = result.citations && result.citations.length > 0
+              ? convertCitationsToSources(result.citations)
+              : responseSources;
+            topicData.perplexity_sources = mergeSources(topicData.perplexity_sources, perplexitySources);
+            if (brandMentioned) {
+              promptResult.brand_mentions.perplexity.push(company.id.toString());
+              platformStats.perplexity.mentions++;
+              topicData.perplexity_mentions++;
+              totalMentions++;
+            }
+            Object.keys(competitorStats).forEach(compId => {
+              const compName = competitorStats[compId].competitor_name;
+              if (result.response.toLowerCase().includes(compName.toLowerCase())) {
+                competitorStats[compId].perplexity_mentions++;
+                competitorStats[compId].total_mentions++;
+              }
+            });
+          } else if (provider === 'gemini') {
+            promptResult.gemini_response = result.response;
+            platformStats.gemini.total++;
+            const geminiSources = result.citations && result.citations.length > 0
+              ? convertCitationsToSources(result.citations)
+              : responseSources;
+            topicData.gemini_sources = mergeSources(topicData.gemini_sources, geminiSources);
+            if (brandMentioned) {
+              promptResult.brand_mentions.gemini.push(company.id.toString());
+              platformStats.gemini.mentions++;
+              topicData.gemini_mentions++;
+              totalMentions++;
+            }
+            Object.keys(competitorStats).forEach(compId => {
+              const compName = competitorStats[compId].competitor_name;
+              if (result.response.toLowerCase().includes(compName.toLowerCase())) {
+                competitorStats[compId].gemini_mentions++;
+                competitorStats[compId].total_mentions++;
+              }
+            });
           }
         }
 
@@ -569,6 +561,12 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
             JSON.stringify(promptResult.google_search_results),
             promptResult.overall_score
           ]
+        );
+
+        // Increment completed_prompts counter for real-time progress tracking
+        await query(
+          'UPDATE reports SET completed_prompts = completed_prompts + 1 WHERE id = $1',
+          [reportId]
         );
       }
 

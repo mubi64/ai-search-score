@@ -37,11 +37,10 @@ export default function RunAnalysis() {
   const [analysisFailed, setAnalysisFailed] = useState(false);
   const [errorDetails, setErrorDetails] = useState(null);
 
-  const totalPrompts = Object.values(promptsByTopic).reduce((sum, prompts) => sum + prompts.length, 0);
-
   // Refs for smooth progress animation (persist across renders)
   const targetProgressRef = useRef(0);
   const smoothProgressRef = useRef(0);
+  const analysisStartTimeRef = useRef(null);
 
   const { data: company } = useQuery({
     queryKey: ['company', companyId],
@@ -180,24 +179,27 @@ export default function RunAnalysis() {
       return result;
     },
     enabled: !!reportId && !analysisComplete && !analysisFailed,
-    refetchInterval: 3000
+    refetchInterval: 2000  // Poll every 2 seconds for responsive updates
   });
 
-  // Update target progress when real data arrives
+  // Update target progress when real data arrives from server
   useEffect(() => {
-    if (!progressData || !totalPrompts) return;
-    const completedPrompts = progressData.progress?.completed || 0;
-    if (totalPrompts > 0 && completedPrompts > 0) {
-      // Map real completion (0-100%) to 0-95% of the progress bar
-      // The final 5% is reserved for when the report status actually becomes 'completed'
-      const realPct = (completedPrompts / totalPrompts) * 95;
-      targetProgressRef.current = Math.max(targetProgressRef.current, realPct);
+    if (!progressData) return;
+    const serverPct = progressData.progress?.percentage || 0;
+    if (serverPct > 0) {
+      // Map server 0-100% to 0-95% of progress bar (last 5% reserved for completion)
+      const mappedPct = serverPct * 0.95;
+      targetProgressRef.current = Math.max(targetProgressRef.current, mappedPct);
     }
-  }, [progressData, totalPrompts]);
+  }, [progressData]);
 
-  // Smooth animation + fallback creep (replaces the old fake linear timer)
+  // Smooth animation + slow creep between real updates
   useEffect(() => {
     if (!hasTriggered || analysisComplete || analysisFailed) return;
+
+    if (!analysisStartTimeRef.current) {
+      analysisStartTimeRef.current = Date.now();
+    }
 
     const MAX_SIMULATED = 95; // Never exceed 95% until report is actually complete
 
@@ -206,14 +208,14 @@ export default function RunAnalysis() {
       let smooth = smoothProgressRef.current;
 
       if (smooth < target) {
-        // Chase the real target with easing
-        smooth += Math.max(0.3, (target - smooth) * 0.08);
+        // Chase the real target quickly with easing
+        smooth += Math.max(0.5, (target - smooth) * 0.12);
         if (smooth > target) smooth = target;
       } else {
         // Slow creep between real updates so the bar always appears moving
-        smooth += 0.04;
-        // Don't creep more than ~8% past the last real target, and cap at MAX_SIMULATED
-        const creepLimit = Math.min(target + 8, MAX_SIMULATED);
+        smooth += 0.03;
+        // Don't creep more than 5% past the last real target, and cap at MAX_SIMULATED
+        const creepLimit = Math.min(target + 5, MAX_SIMULATED);
         if (smooth > creepLimit) smooth = creepLimit;
       }
 
@@ -229,7 +231,7 @@ export default function RunAnalysis() {
         sessionStorage.removeItem('analysisPrompts');
         navigate(createPageUrl("Dashboard"));
       }
-    }, 480000); // 8 minutes max wait
+    }, 600000); // 10 minutes max wait
 
     return () => {
       clearInterval(animationInterval);
@@ -285,7 +287,11 @@ export default function RunAnalysis() {
                 <div className="space-y-6">
                   <EnhancedAnalysisProgress progress={progress} />
                   <div className="text-center">
-                    <p className="text-sm text-slate-500">This may take 3-4 minutes.</p>
+                    <p className="text-sm text-slate-500">
+                      {progressData?.progress?.completed > 0 && progressData?.progress?.total > 0
+                        ? `Processing prompt ${progressData.progress.completed} of ${progressData.progress.total}...`
+                        : 'Starting analysis...'}
+                    </p>
                     {reportId &&
                       <p className="text-xs text-slate-400 mt-1">
                         Report ID: {reportId}

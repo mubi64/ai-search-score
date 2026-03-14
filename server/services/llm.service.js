@@ -114,7 +114,6 @@ class LLMService {
       // Deduplicate citations
       const uniqueCitations = [...new Set(citations)];
 
-      console.log(`✅ OpenAI web search returned ${uniqueCitations.length} citations`);
 
       return {
         text: text || '',
@@ -244,7 +243,6 @@ class LLMService {
       }
 
       const uniqueCitations = [...new Set(citations)];
-      console.log(`✅ Gemini grounding returned ${uniqueCitations.length} citations`);
 
       return {
         text,
@@ -336,7 +334,6 @@ Respond with ONLY the AI Overview content, no meta-commentary.`;
       }
 
       const uniqueCitations = [...new Set(citations)];
-      console.log(`✅ AI Overview grounding returned ${uniqueCitations.length} citations`);
 
       return {
         text,
