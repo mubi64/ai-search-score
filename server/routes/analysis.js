@@ -276,6 +276,24 @@ function convertCitationsToSources(citations) {
   return sources;
 }
 
+// Append citations as markdown links so they are visible in prompt-level UI
+function appendCitationsToResponse(responseText, citations) {
+  const baseText = (responseText || '').trim();
+  const uniqueCitations = Array.isArray(citations)
+    ? [...new Set(citations.filter(Boolean))]
+    : [];
+
+  if (uniqueCitations.length === 0) {
+    return baseText;
+  }
+
+  const citationLines = uniqueCitations
+    .map((url, index) => `${index + 1}. [Source ${index + 1}](${url})`)
+    .join('\n');
+
+  return `${baseText}\n\nSources:\n${citationLines}`;
+}
+
 // Async function to run analysis in background
 async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) {
   try {
@@ -323,7 +341,7 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
       openai: { total: 0, mentions: 0 },
       perplexity: { total: 0, mentions: 0 },
       gemini: { total: 0, mentions: 0 },
-      google: { total: 0, mentions: 0 }
+      google: { total: 0, mentions: 0, present: 0 }
     };
 
     // Track competitor mentions
@@ -389,9 +407,12 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
 
         // Generate Google AI Overview-style response
         if (process.env.GEMINI_API_KEY) {
+          // Count each prompt as a Google AI Overview visibility attempt
+          platformStats.google.total++;
           try {
             const aiOverviewResult = await llmService.generateAIOverview(promptText);
             if (aiOverviewResult && aiOverviewResult.present) {
+              platformStats.google.present++;
               promptResult.google_ai_overview_present = true;
               promptResult.google_ai_overview_response = aiOverviewResult.text;
 
@@ -402,18 +423,16 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
 
               if (brandMentionedInOverview) {
                 promptResult.brand_mentions.google_ai_overview.push(company.id.toString());
-                platformStats.google.total++;
                 platformStats.google.mentions++;
                 topicData.google_ai_overview_mentions++;
                 totalMentions++;
-              } else {
-                platformStats.google.total++;
               }
 
               // Use grounding citations from Google Search if available, fallback to text extraction
               const aiOverviewSources = aiOverviewResult.citations && aiOverviewResult.citations.length > 0
                 ? convertCitationsToSources(aiOverviewResult.citations)
                 : extractSources(aiOverviewResult.text);
+              
               topicData.google_ai_overview_sources = mergeSources(topicData.google_ai_overview_sources, aiOverviewSources);
 
               // Check competitor mentions in AI Overview
@@ -573,7 +592,9 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
       // Calculate topic visibility score
       const topicTotalMentions = topicData.chatgpt_mentions + topicData.gemini_mentions +
         topicData.perplexity_mentions + topicData.google_ai_overview_mentions;
-      const topicTotalPrompts = prompts.length * availableProviders.length;
+      // Include Google AI Overview in denominator since its mentions are counted in numerator
+      const googleAIOverviewCount = process.env.GEMINI_API_KEY ? prompts.length : 0;
+      const topicTotalPrompts = (prompts.length * availableProviders.length) + googleAIOverviewCount;
       const topicVisibility = topicTotalPrompts > 0
         ? Math.round((topicTotalMentions / topicTotalPrompts) * 100)
         : 0;
@@ -620,24 +641,26 @@ async function runAnalysisAsync(reportId, company, promptsByTopic, competitors) 
       : 0;
     const googleAIOverviewVisibility = platformStats.google.total > 0
       ? (platformStats.google.mentions / platformStats.google.total) * 100
-      : null;
+      : 0;
 
     // Overall visibility is average of all platforms that were tested
-    const allPlatformScores = [chatgptVisibility, perplexityVisibility, geminiVisibility];
-    const allPlatformTotals = [platformStats.openai.total, platformStats.perplexity.total, platformStats.gemini.total];
+    const allPlatformScores = [chatgptVisibility, perplexityVisibility, geminiVisibility, googleAIOverviewVisibility];
+    const allPlatformTotals = [platformStats.openai.total, platformStats.perplexity.total, platformStats.gemini.total, platformStats.google.total];
     // Include Google AI Overview in overall score if it was tested
-    if (platformStats.google.total > 0) {
-      allPlatformScores.push(googleAIOverviewVisibility);
-      allPlatformTotals.push(platformStats.google.total);
-    }
+    // if (platformStats.google.total > 0) {
+    //   allPlatformScores.push(googleAIOverviewVisibility);
+    //   allPlatformTotals.push(platformStats.google.total);
+    // }
     const testedPlatforms = allPlatformScores.filter((_, i) => allPlatformTotals[i] > 0);
     const overallScore = testedPlatforms.length > 0
       ? testedPlatforms.reduce((a, b) => a + b, 0) / testedPlatforms.length
       : 0;
 
 
-    // Calculate competitor scores
-    const totalPromptCount = Object.values(promptsByTopic).reduce((sum, p) => sum + p.length, 0) * availableProviders.length;
+    // Calculate competitor scores (include Google AI Overview platform in count)
+    const totalPromptsAcrossTopics = Object.values(promptsByTopic).reduce((sum, p) => sum + p.length, 0);
+    const googleAIOverviewPromptCount = process.env.GEMINI_API_KEY ? totalPromptsAcrossTopics : 0;
+    const totalPromptCount = (totalPromptsAcrossTopics * availableProviders.length) + googleAIOverviewPromptCount;
     Object.keys(competitorStats).forEach(compId => {
       const mentions = competitorStats[compId].total_mentions;
       competitorStats[compId].overall_score = totalPromptCount > 0

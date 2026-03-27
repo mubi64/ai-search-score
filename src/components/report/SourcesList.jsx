@@ -7,48 +7,98 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 // import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function SourcesList({ topicAnalyses }) {
+export default function SourcesList({ topicAnalyses, promptResults = [] }) {
   const [selectedSource, setSelectedSource] = useState(null);
   const [showAll, setShowAll] = useState(false);
   const [filterPlatform, setFilterPlatform] = useState("all");
 
   // Aggregate all sources from all topics
   const allSources = {};
-  
+
+  const ensureSource = (sourceName) => {
+    if (!allSources[sourceName]) {
+      allSources[sourceName] = {
+        platforms: new Set(),
+        urls: { chatgpt: [], gemini: [], perplexity: [], google: [] }
+      };
+    }
+    return allSources[sourceName];
+  };
+
+  const addSourceUrl = (sourceName, platform, urlData) => {
+    if (!sourceName || !platform || !urlData?.url) return;
+
+    const source = ensureSource(sourceName);
+    source.platforms.add(platform);
+
+    const exists = source.urls[platform].some(existing => existing.url === urlData.url);
+    if (!exists) {
+      source.urls[platform].push(urlData);
+    }
+  };
+
+  const toSourceName = (url) => {
+    try {
+      const hostname = new URL(url).hostname.replace(/^www\./, '');
+      const parts = hostname.split('.');
+      const core = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+      return core.charAt(0).toUpperCase() + core.slice(1);
+    } catch {
+      return 'Unknown';
+    }
+  };
+
+  const extractUrlsFromText = (text) => {
+    if (!text || typeof text !== 'string') return [];
+
+    const found = [];
+
+    // Markdown links: [label](https://...)
+    const markdownRegex = /\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/g;
+    let markdownMatch;
+    while ((markdownMatch = markdownRegex.exec(text)) !== null) {
+      found.push(markdownMatch[1]);
+    }
+
+    // Plain URLs
+    const plainRegex = /https?:\/\/[^\s<>"']+/g;
+    let plainMatch;
+    while ((plainMatch = plainRegex.exec(text)) !== null) {
+      found.push(plainMatch[0].replace(/[),.;:!?]+$/, ''));
+    }
+
+    return [...new Set(found)];
+  };
+
   topicAnalyses.forEach(analysis => {
     ['chatgpt_sources', 'gemini_sources', 'perplexity_sources', 'google_ai_overview_sources'].forEach(sourceType => {
       const sources = analysis[sourceType] || {};
       const platform = sourceType.replace('_sources', '').replace('google_ai_overview', 'google');
 
       Object.entries(sources).forEach(([sourceName, urls]) => {
-        if (!allSources[sourceName]) {
-          allSources[sourceName] = {
-            platforms: new Set(),
-            urls: { chatgpt: [], gemini: [], perplexity: [], google: [] }
-          };
-        }
-        allSources[sourceName].platforms.add(platform);
-
-        // Handle both old format (array of strings) and new format (array of objects)
         const urlArray = Array.isArray(urls) ? urls : (urls ? [urls] : []);
 
         urlArray.forEach(item => {
           if (!item) return;
-
-          // Handle both formats: string URLs and {url, context} objects
           const urlData = typeof item === 'string'
             ? { url: item, context: 'Referenced in response' }
             : item;
 
-          // Check if URL already exists
-          const exists = allSources[sourceName].urls[platform].some(
-            existing => existing.url === urlData.url
-          );
-
-          if (!exists) {
-            allSources[sourceName].urls[platform].push(urlData);
-          }
+          addSourceUrl(sourceName, platform, urlData);
         });
+      });
+    });
+  });
+
+  // Include links directly from prompts that have Google AI Overview responses
+  promptResults.forEach(result => {
+    if (!result.google_ai_overview_present || !result.google_ai_overview_response) return;
+
+    const urls = extractUrlsFromText(result.google_ai_overview_response);
+    urls.forEach(url => {
+      addSourceUrl(toSourceName(url), 'google', {
+        url,
+        context: `Citation from Google AI Overview response (${result.topic || 'General'})`
       });
     });
   });
@@ -100,35 +150,17 @@ export default function SourcesList({ topicAnalyses }) {
                 All sources cited by AI platforms across your analysis
               </p>
             </div>
-            {/* <Tabs defaultValue="all" value={filterPlatform} onValueChange={setFilterPlatform}>
-              <TabsList>
-                <TabsTrigger
-                  value="all"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  All
-                </TabsTrigger>
-                <TabsTrigger
-                  value="chatgpt"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  ChatGPT
-                </TabsTrigger>
-                <TabsTrigger
-                  value="gemini"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  Gemini
-                </TabsTrigger>
-                <TabsTrigger
-                  value="perplexity"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  Perplexity
-                </TabsTrigger>
-                <TabsTrigger
-                  value="google"
-                  className="data-[state=active]:font-bold data-[state=active]:text-[#344547] text-slate-500">
-                  Google AI
-                </TabsTrigger>
-              </TabsList>
-            </Tabs> */}
+            <select
+              value={filterPlatform}
+              onChange={(e) => setFilterPlatform(e.target.value)}
+              className="h-10 px-3 rounded-md border border-slate-200 bg-white text-slate-700 text-sm"
+            >
+              <option value="all">All Platforms</option>
+              <option value="google">Google AI</option>
+              <option value="chatgpt">ChatGPT</option>
+              <option value="gemini">Gemini</option>
+              <option value="perplexity">Perplexity</option>
+            </select>
           </div>
         </CardHeader>
         <CardContent className="pt-6">

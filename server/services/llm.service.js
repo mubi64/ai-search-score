@@ -21,7 +21,7 @@ class LLMService {
       gemini: {
         url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
         key: process.env.GEMINI_API_KEY,
-        model: 'gemini-2.0-flash'
+        model: 'gemini-3.1-pro-preview'
       }
     };
   }
@@ -208,7 +208,6 @@ class LLMService {
     try {
       // Use Gemini's native API with Google Search grounding for real citations
       const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.key}`;
-      
       const response = await axios.post(
         nativeUrl,
         {
@@ -243,7 +242,7 @@ class LLMService {
       }
 
       const uniqueCitations = [...new Set(citations)];
-
+      
       return {
         text,
         usage: response.data.usageMetadata ? {
@@ -292,27 +291,30 @@ class LLMService {
       return null;
     }
 
+    const normalizedQuery = typeof searchQuery === 'string' ? searchQuery.trim() : '';
+    if (!normalizedQuery) {
+      return { text: '', present: false, citations: [] };
+    }
+
     try {
-      const aiOverviewPrompt = `You are simulating a Google AI Overview. Given the following search query, provide a concise, factual summary response similar to what Google AI Overviews would display at the top of search results. 
+      const aiOverviewPrompt = `You are simulating a Google AI Overview. 
+IMPORTANT: You MUST use the Google Search tool to look up real-time, up-to-date information for this query before answering. Do not rely solely on your internal training data.
 
-Keep the response brief (2-4 paragraphs), factual, and directly answering the query. Include specific product names, company names, and recommendations where relevant, just like a real AI Overview would.
+Given the following search query, provide a concise, factual summary response similar to what Google AI Overviews would display at the top of search results. 
 
-Search query: "${searchQuery}"
+Keep the response brief (2-4 paragraphs), factual, and directly answering the query. Include specific product names, company names, and recommendations where relevant.
 
-Respond with ONLY the AI Overview content, no meta-commentary.`;
+Search query: "${normalizedQuery}"`;
 
-      // Use Gemini native API with Google Search grounding for real citations
-      const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiConfig.model}:generateContent?key=${geminiConfig.key}`;
+      const model = geminiConfig.model;
+      const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiConfig.key}`;
+
 
       const response = await axios.post(
         nativeUrl,
         {
           contents: [{ parts: [{ text: aiOverviewPrompt }] }],
           tools: [{ google_search: {} }],
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 1000
-          }
         },
         {
           headers: { 'Content-Type': 'application/json' }
@@ -320,11 +322,19 @@ Respond with ONLY the AI Overview content, no meta-commentary.`;
       );
 
       const candidate = response.data.candidates?.[0];
-      const text = candidate?.content?.parts?.map(p => p.text).join('') || '';
+
+      const text = (candidate?.content?.parts || [])
+        .map(p => p?.text)
+        .filter(Boolean)
+        .join('')
+        .trim();
 
       // Extract grounding citations from Gemini's grounding metadata
+      // The metadata structure can vary across API versions, so we check multiple paths
       const citations = [];
       const groundingMetadata = candidate?.groundingMetadata;
+
+      // Path 1: groundingChunks[].web.uri (most common)
       if (groundingMetadata?.groundingChunks) {
         for (const chunk of groundingMetadata.groundingChunks) {
           if (chunk.web?.uri) {
@@ -333,15 +343,40 @@ Respond with ONLY the AI Overview content, no meta-commentary.`;
         }
       }
 
+      // Path 2: groundingSupports[].segment may reference URLs directly
+      if (groundingMetadata?.groundingSupports) {
+        for (const support of groundingMetadata.groundingSupports) {
+          if (support.segment?.uri) {
+            citations.push(support.segment.uri);
+          }
+          // Some versions embed web references inside the support
+          if (support.web?.uri) {
+            citations.push(support.web.uri);
+          }
+        }
+      }
+
+      // Path 3: searchEntryPoint may contain rendered HTML with links
+      if (groundingMetadata?.searchEntryPoint?.renderedContent) {
+        const hrefRegex = /href="(https?:\/\/[^"]+)"/g;
+        let match;
+        while ((match = hrefRegex.exec(groundingMetadata.searchEntryPoint.renderedContent)) !== null) {
+          citations.push(match[1]);
+        }
+      }
+
       const uniqueCitations = [...new Set(citations)];
 
       return {
         text,
-        present: true,
+        present: text.length > 0,
         citations: uniqueCitations
       };
     } catch (error) {
-      console.error('AI Overview generation error:', error.response?.data || error.message);
+      console.error('[AI Overview] Generation error:', error.response?.data || error.message);
+      if (error.response?.status) {
+        console.error('[AI Overview] HTTP status:', error.response.status);
+      }
       return null;
     }
   }

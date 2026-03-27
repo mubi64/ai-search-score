@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,12 +42,42 @@ const PLATFORM_OPTIONS = [
   { value: "google", label: "Google AI" },
 ];
 
-export default function PromptBreakdown({ promptResults, companyName, companyId }) {
+export default function PromptBreakdown({ promptResults, topicAnalyses = [], companyName, companyId }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPlatform, setFilterPlatform] = useState("all");
   const isMobile = useIsMobile();
   const [selectedResponse, setSelectedResponse] = useState(null);
   const [expandedPrompts, setExpandedPrompts] = useState(new Set([0])); // First prompt expanded by default
+
+  const googleSourcesByTopic = useMemo(() => {
+    const topicMap = {};
+
+    topicAnalyses.forEach((analysis) => {
+      const topicName = analysis?.topic;
+      if (!topicName) return;
+
+      const sourceGroups = analysis.google_ai_overview_sources || {};
+      const topicUrls = [];
+
+      Object.values(sourceGroups).forEach((urls) => {
+        const urlArray = Array.isArray(urls) ? urls : (urls ? [urls] : []);
+
+        urlArray.forEach((item) => {
+          if (!item) return;
+          const url = typeof item === "string" ? item : item.url;
+          if (url) {
+            topicUrls.push(url);
+          }
+        });
+      });
+
+      if (topicUrls.length > 0) {
+        topicMap[topicName] = [...new Set(topicUrls)];
+      }
+    });
+
+    return topicMap;
+  }, [topicAnalyses]);
 
   const filteredResults = promptResults.filter((result) => {
     const matchesSearch = result.prompt.toLowerCase().includes(searchTerm.toLowerCase());
@@ -101,6 +131,7 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
     let searchResults = null;
     let notPresent = false;
     let isRankings = false;
+    let googleSources = [];
 
     if (platform === 'chatgpt') {
       response = result.chatgpt_response;
@@ -125,6 +156,12 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
         platformName = 'Google AI Overview';
         mentioned = result.brand_mentions?.google_ai_overview?.includes(companyId);
         notPresent = false;
+
+        // Older reports store Google citations at topic level, not prompt level.
+        // If response text has no links, use topic-level Google sources as fallback.
+        if (!/https?:\/\/\S+/i.test(response)) {
+          googleSources = googleSourcesByTopic[result.topic] || [];
+        }
       }
     } else if (platform === 'google_rankings') {
       platformName = 'Google Rankings';
@@ -139,6 +176,7 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
       mentioned: mentioned,
       notPresent: notPresent,
       searchResults: searchResults,
+      googleSources,
       promptIndex: promptIndex + 1,
       isRankings: isRankings
     });
@@ -469,6 +507,26 @@ export default function PromptBreakdown({ promptResults, companyName, companyId 
                       'No response available'
                     )}
                   </div>
+                  {selectedResponse?.platform === 'Google AI Overview' &&
+                    selectedResponse?.googleSources?.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-semibold text-slate-700 mb-2">Sources:</h4>
+                        <div className="space-y-2">
+                          {selectedResponse.googleSources.map((url, index) => (
+                            <a
+                              key={`${url}-${index}`}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-start gap-2 p-3 bg-white rounded-lg border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-all group"
+                            >
+                              <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-blue-600 flex-shrink-0 mt-0.5" />
+                              <span className="text-sm text-slate-700 group-hover:text-blue-700 break-all">{url}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
               }
             </div>

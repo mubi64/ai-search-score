@@ -148,6 +148,21 @@ export default function ReportDetail() {
     return 'text-red-600 bg-red-50 border-red-200';
   };
 
+  // Derive Google AI visibility from prompt-level "overview present" to avoid stale report rows
+  const totalPromptCount = promptResults.length;
+  const googleOverviewPresentCount = promptResults.reduce(
+    (count, result) => count + (result.google_ai_overview_present ? 1 : 0),
+    0
+  );
+  const computedGoogleVisibility = totalPromptCount > 0
+    ? (googleOverviewPresentCount / totalPromptCount) * 100
+    : parseScore(report.google_ai_overview_visibility);
+
+  const displayReport = {
+    ...report,
+    google_ai_overview_visibility: computedGoogleVisibility
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8 bg-[#f7f3f0]">
       <div className="max-w-7xl mx-auto">
@@ -225,19 +240,20 @@ export default function ReportDetail() {
                 </Badge>
               ))}
             </div>
-            <PlatformComparison report={report} />
+            <PlatformComparison report={displayReport} />
           </CardContent>
         </Card>
 
         <div className="grid lg:grid-cols-2 gap-8 mb-8 mt-8">
           <PromptBreakdown
             promptResults={promptResults}
+            topicAnalyses={topicAnalyses}
             companyName={report.company_name}
             companyId={report.company_id.toString()}
           />
 
           <div className="space-y-8">
-            <SourcesList topicAnalyses={topicAnalyses} />
+            <SourcesList topicAnalyses={topicAnalyses} promptResults={promptResults} />
             <CompetitorRanking
               competitorScores={report.competitor_scores}
               companyName={report.company_name}
