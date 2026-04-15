@@ -29,7 +29,7 @@ Make sure you have the following installed on your machine:
 ## 1. Clone the Repository
 
 ```bash
-git clone [<your-repo-url>](https://github.com/mubi64/ai-search-score)
+git clone https://github.com/mubi64/ai-search-score
 cd ai-search-score
 ```
 
