@@ -29,8 +29,8 @@ Make sure you have the following installed on your machine:
 ## 1. Clone the Repository
 
 ```bash
-git clone <your-repo-url>
-cd brand-pulse-ai-7ef92110
+git clone [<your-repo-url>](https://github.com/mubi64/ai-search-score)
+cd ai-search-score
 ```
 
 ---
